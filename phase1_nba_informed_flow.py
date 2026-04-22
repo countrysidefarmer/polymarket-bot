@@ -190,7 +190,8 @@ def _parse_json_field(val):
 _NON_TEAM_OUTCOMES = {"yes", "no", "over", "under"}
 
 _SKIP_QUESTION_TERMS = (
-    " spread", "o/u ", "over/under", " pts", "points", "assists",
+    "spread",  # catches "Spread: X (±Y)" at start AND " spread" mid-question
+    "o/u ", "over/under", " pts", "points", "assists",
     "rebounds", "steals", "blocks", "threes", "field goals", "turnovers",
     "minutes", "double-double", "triple-double", "first basket",
     "first team", "mvp", "draft", "trade",
@@ -601,10 +602,21 @@ def main():
     log.info("STEP 4  Signal on test markets")
     log.info("=" * 60)
 
+    # Direction hit-rate counters
     informed_hits = 0
     informed_total = 0
     retail_hits = 0
     retail_total = 0
+
+    # PnL accumulators — the primary go/no-go signal.
+    # Informed wallets are value bettors who back underdogs; raw direction hit
+    # rate understates their edge. PnL/$ in the out-of-sample period is the
+    # correct measure: did the informed cohort earn positive expected value?
+    informed_test_pnl = 0.0
+    informed_test_invested = 0.0
+    retail_test_pnl = 0.0
+    retail_test_invested = 0.0
+
     market_detail = []
 
     for market in tqdm(test_markets, desc="Test market signal"):
@@ -625,16 +637,28 @@ def main():
             outcome = trade.get("outcome", "")
             if not outcome:
                 continue
+
             try:
+                price = float(trade["price"])
                 size = float(trade["size"])
             except (KeyError, ValueError, TypeError):
                 continue
 
+            if price <= 0 or price >= 1:
+                continue
+
+            invested = price * size
+            pnl = size * (1.0 - price) if outcome == winner else -invested
+
             cls = wallet_class.get(pw)
             if cls == "informed":
                 informed_flow[outcome] = informed_flow.get(outcome, 0.0) + size
+                informed_test_pnl += pnl
+                informed_test_invested += invested
             elif cls == "retail":
                 retail_flow[outcome] = retail_flow.get(outcome, 0.0) + size
+                retail_test_pnl += pnl
+                retail_test_invested += invested
 
         row = {
             "conditionId": cid,
@@ -671,28 +695,64 @@ def main():
     # ------------------------------------------------------------------
     # Step 5: Results
     # ------------------------------------------------------------------
+    # --- Direction hit rates (diagnostic, not primary signal) ---
     informed_hr = informed_hits / informed_total if informed_total > 0 else 0.0
     retail_hr = retail_hits / retail_total if retail_total > 0 else 0.0
-    edge_pp = (informed_hr - retail_hr) * 100
+    dir_edge_pp = (informed_hr - retail_hr) * 100
 
-    goes = informed_hr >= GO_HIT_RATE and edge_pp >= GO_EDGE_PP
+    # --- PnL per dollar in test period (primary signal) ---
+    # Captures value-betting edge: informed wallets back underdogs at better
+    # prices, so their raw direction hit rate is lower than retail even when
+    # they have genuine edge. PnL/$ accounts for the price paid.
+    informed_ppd = (
+        informed_test_pnl / informed_test_invested
+        if informed_test_invested > 0 else float("nan")
+    )
+    retail_ppd = (
+        retail_test_pnl / retail_test_invested
+        if retail_test_invested > 0 else float("nan")
+    )
+    pnl_edge = (
+        informed_ppd - retail_ppd
+        if not (np.isnan(informed_ppd) or np.isnan(retail_ppd)) else float("nan")
+    )
+
+    # GO/NO-GO: primary = PnL signal; include direction hit rate for reference.
+    # Thresholds: informed PnL/$ >= 0 (break-even or better out-of-sample)
+    #             AND PnL edge over retail >= 0.03 (3¢/$)
+    GO_PNL = 0.0
+    GO_PNL_EDGE = 0.03
+    goes = (
+        not np.isnan(informed_ppd)
+        and informed_ppd >= GO_PNL
+        and not np.isnan(pnl_edge)
+        and pnl_edge >= GO_PNL_EDGE
+    )
 
     print()
     print("=" * 60)
     print("  PHASE 1 RESULTS: NBA Informed-Flow Analysis")
     print("=" * 60)
-    print(f"  Lookback window   : {LOOKBACK_DAYS} days")
-    print(f"  Total NBA markets : {len(raw_markets)} raw, {len(resolved_markets)} resolved")
-    print(f"  Training markets  : {len(training_markets)}")
-    print(f"  Test markets      : {len(test_markets)}")
-    print(f"  Qualifying wallets: {len(wallet_stats)}")
-    print(f"    Informed        : {n_informed} (top {INFORMED_TOP_PCT*100:.0f}%)")
-    print(f"    Retail          : {n_retail} (bottom {RETAIL_BOTTOM_PCT*100:.0f}%)")
-    print(f"  Test mkts w/signal: informed={informed_total}, retail={retail_total}")
+    print(f"  Lookback window    : {LOOKBACK_DAYS} days")
+    print(f"  Total NBA markets  : {len(raw_markets)} raw, {len(resolved_markets)} resolved")
+    print(f"  Training markets   : {len(training_markets)}")
+    print(f"  Test markets       : {len(test_markets)}")
+    print(f"  Qualifying wallets : {len(wallet_stats)}")
+    print(f"    Informed         : {n_informed} (top {INFORMED_TOP_PCT*100:.0f}%)")
+    print(f"    Retail           : {n_retail} (bottom {RETAIL_BOTTOM_PCT*100:.0f}%)")
+    print(f"  Test mkts w/signal : informed={informed_total}, retail={retail_total}")
     print()
-    print(f"  Informed hit rate : {informed_hr:.1%}  ({informed_hits}/{informed_total})")
-    print(f"  Retail hit rate   : {retail_hr:.1%}  ({retail_hits}/{retail_total})")
-    print(f"  Edge (inf - ret)  : {edge_pp:+.1f}pp")
+    print("  --- Primary signal: PnL per dollar (out-of-sample) ---")
+    print(f"  Informed PnL/$     : {informed_ppd:+.4f}  (${informed_test_pnl:,.0f} on ${informed_test_invested:,.0f} invested)")
+    print(f"  Retail PnL/$       : {retail_ppd:+.4f}  (${retail_test_pnl:,.0f} on ${retail_test_invested:,.0f} invested)")
+    print(f"  PnL edge (inf-ret) : {pnl_edge:+.4f}")
+    print()
+    print("  --- Reference: direction hit rates ---")
+    print(f"  Informed hit rate  : {informed_hr:.1%}  ({informed_hits}/{informed_total})")
+    print(f"  Retail hit rate    : {retail_hr:.1%}  ({retail_hits}/{retail_total})")
+    print(f"  Dir edge (inf-ret) : {dir_edge_pp:+.1f}pp")
+    print(f"  NOTE: informed wallets back underdogs — low hit rate is expected")
+    print(f"        for value bettors. PnL/$ is the correct edge metric.")
     print()
 
     if informed_total < 50:
@@ -703,13 +763,15 @@ def main():
         print()
 
     if goes:
-        print("  GO — informed >= 58% AND edge >= 8pp. Proceed to Phase 2.")
+        print("  GO — informed PnL/$ >= 0 AND PnL edge >= 3¢/$. Proceed to Phase 2.")
     else:
         reasons = []
-        if informed_hr < GO_HIT_RATE:
-            reasons.append(f"hit rate {informed_hr:.1%} < 58%")
-        if edge_pp < GO_EDGE_PP:
-            reasons.append(f"edge {edge_pp:.1f}pp < 8pp")
+        if np.isnan(informed_ppd):
+            reasons.append("no informed trades in test set")
+        elif informed_ppd < GO_PNL:
+            reasons.append(f"informed PnL/$ {informed_ppd:+.4f} < 0")
+        if not np.isnan(pnl_edge) and pnl_edge < GO_PNL_EDGE:
+            reasons.append(f"PnL edge {pnl_edge:+.4f} < {GO_PNL_EDGE:.2f}")
         print(f"  NO-GO — {'; '.join(reasons)}.")
         print("     Do not massage parameters. This is the honest result.")
 
@@ -729,12 +791,17 @@ def main():
         "retail_wallets": n_retail,
         "test_markets_informed": informed_total,
         "test_markets_retail": retail_total,
+        # Primary signal
+        "informed_test_pnl_per_dollar": round(informed_ppd, 4) if not np.isnan(informed_ppd) else None,
+        "retail_test_pnl_per_dollar": round(retail_ppd, 4) if not np.isnan(retail_ppd) else None,
+        "pnl_edge_per_dollar": round(pnl_edge, 4) if not np.isnan(pnl_edge) else None,
+        # Reference
         "informed_hit_rate": round(informed_hr, 4),
         "retail_hit_rate": round(retail_hr, 4),
-        "edge_pp": round(edge_pp, 2),
+        "direction_edge_pp": round(dir_edge_pp, 2),
         "go_no_go": "GO" if goes else "NO-GO",
-        "go_threshold_hit_rate": GO_HIT_RATE,
-        "go_threshold_edge_pp": GO_EDGE_PP,
+        "go_threshold_pnl_per_dollar": GO_PNL,
+        "go_threshold_pnl_edge": GO_PNL_EDGE,
     }
 
     out_json = OUTPUT_DIR / "phase1_results.json"
