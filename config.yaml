@@ -1,0 +1,20 @@
+lookback_days: 365   # doubled from phase1's 180; more data for wallet classification
+
+sports:
+  nba:
+    enabled: true
+  soccer:
+    enabled: true
+
+classification:
+  min_trades: 20           # minimum qualifying BUY trades per wallet
+  informed_top_pct: 0.10   # top 10% by PnL/$ → informed
+  retail_bottom_pct: 0.50  # bottom 50% by PnL/$ → retail
+
+go_no_go:
+  min_informed_pnl_per_dollar: 0.0   # informed must be break-even or better
+  min_pnl_edge_per_dollar: 0.03      # informed - retail edge must be >= 3¢/$
+
+github:
+  repo: null                 # set to "owner/repo" before running on GitHub Actions
+  results_issue_number: null # set to issue number after first run creates it

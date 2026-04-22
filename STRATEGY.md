@@ -61,7 +61,22 @@ Next categories after NBA: soccer, NFL, crypto.
 
 ---
 
-## Phase 2 — Full Classification Pipeline (planned)
+## Phase 2 — Automated Research Pipeline (current)
+
+**Repo structure:** `core/api.py` · `core/classify.py` · `core/report.py` · `sports/nba.py` · `sports/soccer.py`
+
+**Entry point:** `run_analysis.py` — multi-sport, reads `config.yaml`, writes `results/YYYY-MM-DD.json`
+
+**CI:** `.github/workflows/analysis.yml` — runs weekly (Monday 8am UTC) or on demand.  
+Cache: `actions/cache@v4` keyed weekly → 10GB free, 7-day TTL.  
+Results: committed to `results/`, GitHub issue updated via `PyGitHub`.
+
+**Soccer findings (verified April 2026):**
+- Markets use Yes/No outcomes: "Will [Team] win on YYYY-MM-DD?" — NOT team-vs-team format
+- Sport identified via event slug prefix: `epl-`, `ucl-`, `bun-`, `sea-`, `lal-`, `fl1-`, `uel-`, `elc-`, `efa-`, `ere-`, `carabao-`
+- 3,431 resolved win markets in 365-day window across 11 leagues
+
+**Phase 3 — Full Classification Pipeline (planned)**
 
 - Real-time wallet classification updated rolling every N days
 - Exact PnL via Polymarket `/positions` and `/activity` endpoints

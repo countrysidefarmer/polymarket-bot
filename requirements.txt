@@ -3,3 +3,5 @@ pandas
 numpy
 tqdm
 pyarrow
+PyYAML
+PyGitHub

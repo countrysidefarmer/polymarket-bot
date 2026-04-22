@@ -1,0 +1,54 @@
+name: Informed-Flow Analysis
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'   # every Monday 8am UTC
+  workflow_dispatch:       # manual trigger for testing
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    permissions:
+      issues: write   # needed to create/update the results issue
+      contents: write # needed to commit results/*.json
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Get week key for cache
+        id: date
+        run: echo "week=$(date +%Y-%W)" >> $GITHUB_OUTPUT
+
+      - name: Restore API cache
+        uses: actions/cache@v4
+        with:
+          path: ./cache
+          key: polymarket-${{ runner.os }}-${{ steps.date.outputs.week }}
+          restore-keys: polymarket-${{ runner.os }}-
+
+      - name: Run analysis
+        run: python run_analysis.py
+
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add results/
+          git diff --staged --quiet || git commit -m "chore: add weekly analysis results $(date +%Y-%m-%d)"
+          git push
+
+      - name: Update GitHub issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python -c "from core.report import update_issue_from_latest; update_issue_from_latest()"
+        # If github.results_issue_number is null in config.yaml, this creates a new issue
+        # and prints its number. Set it in config.yaml and re-run.
