@@ -1,0 +1,26 @@
+{
+  "run_date": "2026-04-22T06:43:40.134563",
+  "results_by_sport": [
+    {
+      "sport": "nba",
+      "lookback_days": 365,
+      "resolved_markets": 1421,
+      "training_markets": 710,
+      "test_markets": 711,
+      "qualifying_wallets": 3362,
+      "informed_wallets": 337,
+      "retail_wallets": 1681,
+      "test_markets_informed": 425,
+      "test_markets_retail": 675,
+      "informed_test_pnl_per_dollar": -0.1172,
+      "retail_test_pnl_per_dollar": -0.0184,
+      "pnl_edge_per_dollar": -0.0989,
+      "informed_hit_rate": 0.2165,
+      "retail_hit_rate": 0.3052,
+      "direction_edge_pp": -8.8715,
+      "go_no_go": "NO-GO",
+      "go_threshold_pnl_per_dollar": 0.0,
+      "go_threshold_pnl_edge": 0.03
+    }
+  ]
+}
