@@ -1,9 +1,15 @@
-lookback_days: 365   # doubled from phase1's 180; more data for wallet classification
+lookback_days: 365
 
 sports:
   nba:
     enabled: true
   soccer:
+    enabled: true
+  tennis:
+    enabled: true
+  ufc:
+    enabled: true
+  esports:
     enabled: true
 
 classification:
@@ -11,10 +17,17 @@ classification:
   informed_top_pct: 0.10   # top 10% by PnL/$ → informed
   retail_bottom_pct: 0.50  # bottom 50% by PnL/$ → retail
 
+# All PnL thresholds are fee-adjusted (Polymarket 2% taker fee already deducted in classify.py).
+# A threshold of 0.0 means after-fee breakeven. The signal must also exceed the edge bar.
 go_no_go:
-  min_informed_pnl_per_dollar: 0.0   # informed must be break-even or better
-  min_pnl_edge_per_dollar: 0.03      # informed - retail edge must be >= 3¢/$
+  min_informed_pnl_per_dollar: 0.0   # informed must be fee-adjusted breakeven or better
+  min_pnl_edge_per_dollar: 0.03      # informed - retail edge must be >= 3¢/$ (after fees)
+
+walk_forward:
+  train_min_months: 3          # minimum months of training data before first test fold
+  test_window_months: 1        # size of each test fold in months
+  min_test_markets_per_fold: 10  # skip folds with fewer test markets than this
 
 github:
-  repo: null                 # set to "owner/repo" before running on GitHub Actions
-  results_issue_number: null # set to issue number after first run creates it
+  repo: "countrysidefarmer/polymarket-bot"
+  results_issue_number: null   # set to issue number after first run creates it

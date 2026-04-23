@@ -71,24 +71,51 @@ def build_markdown_report(
         for r in results_by_sport:
             sport = r.get("sport", "unknown").upper()
             go = r.get("go_no_go", "N/A")
-            lines += [
-                f"### {sport} — {_go_badge(go)}",
-                f"",
+            n_folds = r.get("n_folds", "")
+            validation = r.get("validation", "single_split")
+            fold_label = f"{n_folds}-fold walk-forward" if n_folds else validation
+
+            # Support both walk-forward (mean_*) and legacy single-split field names
+            inf_ppd = r.get("mean_informed_pnl_per_dollar", r.get("informed_test_pnl_per_dollar"))
+            ret_ppd = r.get("mean_retail_pnl_per_dollar", r.get("retail_test_pnl_per_dollar"))
+            edge = r.get("mean_pnl_edge_per_dollar", r.get("pnl_edge_per_dollar"))
+            inf_hr = r.get("mean_informed_hit_rate", r.get("informed_hit_rate"))
+            ret_hr = r.get("mean_retail_hit_rate", r.get("retail_hit_rate"))
+            go_rate = r.get("go_rate")
+
+            rows = [
                 f"| Metric | Value |",
                 f"|--------|-------|",
+                f"| Validation | {fold_label} |",
                 f"| Lookback days | {r.get('lookback_days', 'N/A')} |",
                 f"| Resolved markets | {r.get('resolved_markets', 'N/A')} |",
-                f"| Training / Test | {r.get('training_markets', 'N/A')} / {r.get('test_markets', 'N/A')} |",
-                f"| Qualifying wallets | {r.get('qualifying_wallets', 'N/A')} |",
-                f"| Informed wallets | {r.get('informed_wallets', 'N/A')} |",
-                f"| Retail wallets | {r.get('retail_wallets', 'N/A')} |",
-                f"| Informed PnL/$ | {_fmt_pnl(r.get('informed_test_pnl_per_dollar'))} |",
-                f"| Retail PnL/$ | {_fmt_pnl(r.get('retail_test_pnl_per_dollar'))} |",
-                f"| PnL edge (inf − ret) | {_fmt_pnl(r.get('pnl_edge_per_dollar'))} |",
-                f"| Informed hit rate | {_fmt_pct(r.get('informed_hit_rate'))} |",
-                f"| Retail hit rate | {_fmt_pct(r.get('retail_hit_rate'))} |",
-                f"",
+                f"| Mean informed PnL/$ | {_fmt_pnl(inf_ppd)} |",
+                f"| Mean retail PnL/$ | {_fmt_pnl(ret_ppd)} |",
+                f"| Mean PnL edge (inf − ret) | {_fmt_pnl(edge)} |",
+                f"| Mean informed hit rate | {_fmt_pct(inf_hr)} |",
+                f"| Mean retail hit rate | {_fmt_pct(ret_hr)} |",
             ]
+            if go_rate is not None:
+                rows.append(f"| GO rate (folds) | {_fmt_pct(go_rate)} |")
+
+            lines += [f"### {sport} — {_go_badge(go)}", f"", *rows, f""]
+
+            # Per-fold breakdown table (if walk-forward)
+            folds = r.get("folds", [])
+            if folds:
+                lines += [
+                    f"<details><summary>Fold-by-fold breakdown</summary>",
+                    f"",
+                    f"| Fold | Test window | Inf PnL/$ | Edge | GO? |",
+                    f"|------|-------------|-----------|------|-----|",
+                ]
+                for fold in folds:
+                    tw = f"{fold.get('test_start', '?')} → {fold.get('test_end', '?')}"
+                    fi = _fmt_pnl(fold.get("informed_pnl_per_dollar"))
+                    fe = _fmt_pnl(fold.get("pnl_edge_per_dollar"))
+                    fg = "✅" if fold.get("go_no_go") == "GO" else "❌"
+                    lines.append(f"| {fold.get('fold', '?')} | {tw} | {fi} | {fe} | {fg} |")
+                lines += [f"", f"</details>", f""]
 
     # Historical summary table
     if history:
@@ -103,8 +130,9 @@ def build_markdown_report(
         for h in sorted(history, key=lambda x: x.get("run_date", ""), reverse=True):
             date = h.get("run_date", "")[:10]
             sport = h.get("sport", "all").upper()
-            inf_ppd = _fmt_pnl(h.get("informed_test_pnl_per_dollar"))
-            edge = _fmt_pnl(h.get("pnl_edge_per_dollar"))
+            # Support both walk-forward and legacy field names
+            inf_ppd = _fmt_pnl(h.get("mean_informed_pnl_per_dollar", h.get("informed_test_pnl_per_dollar")))
+            edge = _fmt_pnl(h.get("mean_pnl_edge_per_dollar", h.get("pnl_edge_per_dollar")))
             go = "✅" if h.get("go_no_go") == "GO" else "❌"
             lines.append(f"| {date} | {sport} | {inf_ppd} | {edge} | {go} |")
         lines.append("")

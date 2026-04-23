@@ -63,7 +63,8 @@ Next categories after NBA: soccer, NFL, crypto.
 
 ## Phase 2 — Automated Research Pipeline (current)
 
-**Repo structure:** `core/api.py` · `core/classify.py` · `core/report.py` · `sports/nba.py` · `sports/soccer.py`
+**Repo:** `countrysidefarmer/polymarket-bot`  
+**Repo structure:** `core/api.py` · `core/classify.py` · `core/report.py` · `sports/{nba,soccer,tennis,ufc,esports}.py`
 
 **Entry point:** `run_analysis.py` — multi-sport, reads `config.yaml`, writes `results/YYYY-MM-DD.json`
 
@@ -71,10 +72,20 @@ Next categories after NBA: soccer, NFL, crypto.
 Cache: `actions/cache@v4` keyed weekly → 10GB free, 7-day TTL.  
 Results: committed to `results/`, GitHub issue updated via `PyGitHub`.
 
-**Soccer findings (verified April 2026):**
-- Markets use Yes/No outcomes: "Will [Team] win on YYYY-MM-DD?" — NOT team-vs-team format
-- Sport identified via event slug prefix: `epl-`, `ucl-`, `bun-`, `sea-`, `lal-`, `fl1-`, `uel-`, `elc-`, `efa-`, `ere-`, `carabao-`
-- 3,431 resolved win markets in 365-day window across 11 leagues
+**Methodology (updated April 2026):**
+- **PnL formula:** `size * (0.98 - price)` if win, `-price * size` if loss. The 0.98 factor deducts Polymarket's 2% taker fee. All thresholds are after-fee breakeven values.
+- **Validation:** Expanding-window walk-forward (6-month minimum train, 1-month test folds). GO requires: mean edge ≥ 3¢/$ AND ≥ 60% of folds agree.
+- **Go threshold:** informed fee-adjusted PnL/$ ≥ 0 AND edge ≥ 3¢/$
+
+**Market format findings (verified April 2026):**
+
+| Sport | Outcome format | Slug prefix | Est. markets/yr |
+|-------|---------------|-------------|-----------------|
+| NBA | Team names | (keyword: "nba") | ~1,400 |
+| Soccer | Yes/No (+ rare team-name finals) | `epl-`, `ucl-`, `bun-`, `sea-`, `lal-`, `fl1-`, `uel-`, `elc-`, `efa-`, `ere-`, `carabao-` | ~3,400 |
+| Tennis ATP/WTA | Player names | `atp-`, `wta-` | ~9,500 |
+| UFC | Fighter names | `ufc-` | ~160 |
+| Esports | Team names | `cs2-`, `lol-`, `dota2-`, `val-` | ~400–2,000 |
 
 **Phase 3 — Full Classification Pipeline (planned)**
 

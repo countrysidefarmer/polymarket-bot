@@ -4,10 +4,13 @@ core/classify.py — Sport-agnostic wallet classification and PnL tracking.
 Classifies wallets into informed (top 10% PnL/$) and retail (bottom 50% PnL/$)
 using BUY trades from training markets, then evaluates signal on test markets.
 
-PnL approximation (Phase 1 method):
+PnL formula (fee-adjusted):
   invested = price * size
-  PnL = size * (1 - price)  if outcome == winner
-        -invested             otherwise
+  PnL = size * (0.98 - price)  if outcome == winner   (2% Polymarket taker fee on payout)
+        -invested                otherwise
+  PnL per dollar = total_pnl / total_invested
+
+All thresholds in config.yaml are therefore after-fee breakeven values.
 """
 
 import logging
@@ -72,7 +75,8 @@ def build_wallet_pool(
 
             invested = price * size
             outcome = trade.get("outcome", "")
-            pnl = size * (1.0 - price) if outcome == winner else -invested
+            # 2% Polymarket taker fee deducted from resolution payout
+            pnl = size * (0.98 - price) if outcome == winner else -invested
 
             wallet_pnl[pw] = wallet_pnl.get(pw, 0.0) + pnl
             wallet_invested[pw] = wallet_invested.get(pw, 0.0) + invested
@@ -192,7 +196,8 @@ def evaluate_test_markets(
                 continue
 
             invested = price * size
-            pnl = size * (1.0 - price) if outcome == winner else -invested
+            # 2% Polymarket taker fee deducted from resolution payout
+            pnl = size * (0.98 - price) if outcome == winner else -invested
 
             cls = wallet_class.get(pw)
             if cls == "informed":
