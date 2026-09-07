@@ -1,0 +1,30 @@
+{
+  "run_date": "2026-09-07T13:58:05.924160",
+  "results_by_sport": [
+    {
+      "sport": "nba",
+      "error": "insufficient markets: 0 < 20",
+      "go_no_go": "NO-GO"
+    },
+    {
+      "sport": "soccer",
+      "error": "insufficient markets: 0 < 20",
+      "go_no_go": "NO-GO"
+    },
+    {
+      "sport": "tennis",
+      "error": "insufficient markets: 0 < 20",
+      "go_no_go": "NO-GO"
+    },
+    {
+      "sport": "ufc",
+      "error": "insufficient markets: 0 < 20",
+      "go_no_go": "NO-GO"
+    },
+    {
+      "sport": "esports",
+      "error": "insufficient markets: 0 < 20",
+      "go_no_go": "NO-GO"
+    }
+  ]
+}
